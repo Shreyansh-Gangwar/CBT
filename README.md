@@ -1,73 +1,71 @@
-# JEE Main — Determinants Chapter-wise Test
+# JEE CBT Platform — Lakshya JEE 2026
 
-A fully offline, self-hosted JEE Main style mock test for **Determinants** (20 questions).
+A complete Computer Based Test (CBT) web app built with Next.js 14.
 
 ## Features
-- ✅ 20 MCQ questions displayed as **crisp images** (no LaTeX rendering issues)
-- ⏱️ 1-hour countdown timer — auto-submits on expiry
-- 🔖 Mark for Review functionality (JEE Main style)
-- ➕4 / ➖1 Negative marking scheme
-- 🎨 Full question palette with colour-coded status
-- 📊 Detailed score summary with answer review & solutions
-- 📱 Responsive design
+- Multi-test home screen, grouped by subject (Physics / Chemistry / Maths)
+- Last attempt score shown on each test card
+- Configurable countdown timer with red pulsing warning in last 5 minutes
+- JEE Main style question palette (5 colour states)
+- Mark for Review & Next, Clear Response
+- +4 / −1 / 0 marking scheme
+- Confirm dialog before submission
+- Post-submission: highlighted correct/wrong answers + solution per question
+- Full results screen with section-wise breakdown
+- Dark / Light mode toggle
+- Works as a static export (Vercel deployment ready)
+
+## Setup
+
+```bash
+npm install
+npm run dev       # development
+npm run build     # production build (static export in /out)
+```
+
+## Deployment (Vercel)
+Push to GitHub and connect to Vercel. The `output: 'export'` config handles static deployment automatically.
+
+## Adding More Tests
+
+1. Open `src/data/questions.js`
+2. Add a new object to the `tests` array:
+
+```js
+{
+  id: "pt02",                          // unique string id
+  name: "Practice Test 02",
+  subject: "Physics",                  // for menu grouping
+  subjects: ["Physics", "Chemistry", "Mathematics"],
+  chapter: "Chapter Name",
+  duration: 10800,                     // seconds (180 min)
+  date: "DD/MM/YYYY",
+  maxMarks: 300,
+  totalQuestions: 75,
+  questions: [
+    {
+      id: 1,
+      section: "Physics",              // "Physics" | "Chemistry" | "Mathematics"
+      type: "mcq",                     // "mcq" | "integer"
+      questionText: "Question text here...",
+      options: ["Option A", "Option B", "Option C", "Option D"], // MCQ only
+      correctAnswer: 2,                // option number (1-4) for MCQ; integer value for integer type
+      solution: "Step-by-step solution...",
+    },
+    // ... 74 more questions
+  ]
+}
+```
+
+3. Save the file — the new test appears automatically in the menu under the correct subject.
 
 ## Project Structure
 ```
-jee-determinants-test/
-├── public/
-│   └── q/           ← 20 question images (q1.jpg … q20.jpg)
-├── src/
-│   ├── app/
-│   │   ├── layout.js
-│   │   ├── page.js      ← Main test UI
-│   │   └── globals.css
-│   └── data/
-│       └── questions.js ← Answers + explanations
-├── next.config.js
-└── package.json
+src/
+  app/
+    page.js        ← entire CBT app (single file, client component)
+    layout.js
+    globals.css
+  data/
+    questions.js   ← all test data (add new tests here)
 ```
-
-## Deploy to Vercel (Free)
-
-### Step 1 — Push to GitHub
-```bash
-# In the project folder
-git init
-git add .
-git commit -m "JEE Determinants Test"
-
-# Create a new repo on github.com, then:
-git remote add origin https://github.com/YOUR_USERNAME/jee-determinants-test.git
-git branch -M main
-git push -u origin main
-```
-
-### Step 2 — Deploy on Vercel
-1. Go to [vercel.com](https://vercel.com) → **Sign in with GitHub**
-2. Click **"Add New Project"**
-3. Import your `jee-determinants-test` repo
-4. Settings will auto-detect Next.js — click **Deploy**
-5. Done! Your test is live at `https://jee-determinants-test.vercel.app`
-
-### Step 3 — Run Locally (Optional)
-```bash
-npm install
-npm run dev
-# Open http://localhost:3000
-```
-
-## Marking Scheme
-| Answer | Marks |
-|--------|-------|
-| Correct | +4 |
-| Wrong | −1 |
-| Skipped | 0 |
-
-## Question Status Legend
-| Colour | Meaning |
-|--------|---------|
-| 🔘 Grey | Not visited |
-| 🔴 Red | Visited, not answered |
-| 🟢 Green | Answered |
-| 🟣 Purple | Marked for review |
-| 🟣+outline | Marked for review + Answered (will be evaluated) |
