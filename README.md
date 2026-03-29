@@ -1,207 +1,114 @@
-# JEE CBT Portal
+# Lakshya JEE 2026 — Practice Test 01
 
-A full JEE Mains/Advanced-style Computer Based Test portal. Deploy on Vercel in minutes.
+Computer-based test with **75 questions** across Physics, Chemistry, and Mathematics.
 
----
-
-## 📁 Project Structure
-
-```
-jee-cbt/
-├── index.html
-├── app.js                  ← Main app logic (router, CBT, result)
-├── styles/
-│   └── main.css            ← Full theme system (dark/light)
-├── vercel.json             ← Vercel deployment config
-└── tests/
-    ├── index.js            ← TEST REGISTRY — register all tests here
-    └── sample-test-1/
-        ├── meta.json       ← Test structure, questions, answers
-        ├── physics/
-        │   ├── q1.png      ← Question images
-        │   ├── q2.png
-        │   └── sol1.png    ← Solution images (optional)
-        ├── chemistry/
-        └── maths/
-```
+## Features
+- ✅ 75 questions as crisp images (no LaTeX — renders perfectly)
+- 🔘 MCQ (Q1–20, 26–45, 51–70) with A/B/C/D buttons
+- 🔢 Integer Type (Q21–25, 46–50, 71–75) with number input box
+- ⏱️ 3-hour countdown timer with auto-submit
+- 🎨 JEE Main style palette — 5 colour states (round = integer, square = MCQ)
+- 🔖 Mark for Review & Next
+- ➕4 / ➖1 negative marking for both MCQ and Integer types
+- 📊 Section-wise results with per-question breakdown
 
 ---
 
-## 🚀 Deploy to Vercel
+## Run Locally
 
 ```bash
-# 1. Push to GitHub
+unzip jee-practice-test-01.zip
+cd jee-full
+npm install
+npm run dev
+```
+Open **http://localhost:3000** in your browser.
+
+---
+
+## Push to GitHub
+
+```bash
+# Inside the jee-full folder:
 git init
 git add .
-git commit -m "initial JEE CBT portal"
-git remote add origin https://github.com/YOUR_USERNAME/jee-cbt.git
+git commit -m "Lakshya JEE Practice Test 01"
+
+# Go to github.com → click "+" → "New repository"
+# Name it: jee-practice-test-01
+# Keep it public, do NOT add README
+# Copy the repo URL, then run:
+
+git remote add origin https://github.com/YOUR_USERNAME/jee-practice-test-01.git
+git branch -M main
 git push -u origin main
-
-# 2. Go to vercel.com → New Project → Import your repo
-# 3. Framework: Other (static)  |  Root: ./
-# Done! Live in 30 seconds.
 ```
 
 ---
 
-## ➕ Adding a New Test
-
-### Step 1 — Create the folder structure
+## Deploy on Vercel
 
 ```
-tests/
-└── my-new-test/
-    ├── meta.json
-    ├── physics/
-    │   ├── q1.png
-    │   ├── q2.png
-    │   └── ...
-    ├── chemistry/
-    └── maths/
-```
+1. Go to https://vercel.com and sign in with GitHub
 
-### Step 2 — Register in `tests/index.js`
+2. Click "Add New Project"
 
-```js
-{
-  id: "my-new-test",
-  title: "JEE Mains 2023 April — Paper 2",
-  type: "FULL_PAPER",         // FULL_PAPER | CHAPTERWISE | PYQ | SECTIONAL
-  subjects: ["Physics", "Chemistry", "Mathematics"],
-  totalQuestions: 90,
-  totalMarks: 300,
-  recommendedTime: 180,
-  difficulty: "Medium",
-  year: 2023,
-  tags: ["PYQ", "April Session"],
-  path: "./tests/my-new-test/meta.json",
-},
-```
+3. Find and click "Import" next to your jee-practice-test-01 repository
 
-### Step 3 — Fill meta.json (see sample-test-1/meta.json for full schema)
+4. Framework will be auto-detected as Next.js
+   — do NOT change any build settings
 
----
+5. Click "Deploy"
 
-## 📄 Question Types Supported
+6. Wait ~60 seconds
+   Your live URL will appear, e.g.:
+   https://jee-practice-test-01.vercel.app
 
-| Type | Description | Marking |
-|------|-------------|---------|
-| `MCQ` | Single correct, 4 options | +4 / −1 |
-| `NUMERICAL` | Integer/decimal answer | +4 / 0 |
-| `MSQ` | Multiple correct (JEE Advanced) | +4 full / partial / −2 wrong |
-| `MCQ_MULTI` | Alias for MSQ | same |
-
----
-
-## 🤖 PROMPT — Convert PDF to Test Files
-
-Use this prompt with Claude or GPT-4o Vision to extract questions from a JEE PDF:
-
----
-
-```
-You are a JEE exam digitization assistant. I will provide you pages from a JEE Mains/Advanced paper PDF.
-
-Your job:
-1. Extract EVERY question exactly as printed. Do NOT skip any question.
-2. For each page I send, extract each question as a SEPARATE image crop.
-   - Crop must include: question text, diagrams, graphs, sub-parts, ALL options (A/B/C/D).
-   - Crop must NOT include: page header, page number, adjacent questions.
-   - If a question spans two pages, combine both crops.
-3. Name images: q1.png, q2.png ... for questions; sol1.png, sol2.png ... for solutions.
-4. For the answer key page, extract each answer and map it to the correct question number.
-5. Output a valid meta.json following this EXACT schema:
-
-{
-  "id": "REPLACE_WITH_TEST_ID",
-  "title": "REPLACE_WITH_TEST_TITLE",
-  "type": "FULL_PAPER",
-  "instructions": ["..."],
-  "sections": [
-    {
-      "id": "physics",
-      "label": "Physics",
-      "color": "#3b82f6",
-      "questions": [
-        {
-          "id": "phy_1",
-          "number": 1,
-          "type": "MCQ",
-          "image": "./tests/TEST_ID/physics/q1.png",
-          "options": ["A", "B", "C", "D"],
-          "correct": "B",
-          "marks": 4,
-          "negativeMark": -1,
-          "solution": "./tests/TEST_ID/physics/sol1.png",
-          "solutionText": "Brief solution explanation here."
-        }
-      ]
-    }
-  ]
-}
-
-Rules:
-- type is "MCQ" for single correct, "NUMERICAL" for integer answer, "MSQ" for multiple correct.
-- For NUMERICAL: "correct" is a string like "24" or "3.14", "options" is null.
-- For MSQ: "correct" is an array like ["A", "C"], "negativeMark" is -2.
-- Every question MUST have an entry. Never guess or skip.
-- Do not use LaTeX. All math must be in the image crop.
-- Double-check each answer against the answer key before writing it.
-- After building the full JSON, re-read it and verify: (a) question count matches PDF, (b) all image paths are correct, (c) all answers are mapped.
-
-Send me the PDF pages now.
+7. Share the URL with students!
 ```
 
 ---
 
-## 🎨 Theme Customization
+## Update Questions / Answers Later
 
-Edit CSS variables at the top of `styles/main.css`:
-- Subject colors: `--color-physics`, `--color-chemistry`, `--color-maths`
-- Status colors: `--color-answered`, `--color-not-answered`, etc.
+```bash
+# After editing any file:
+git add .
+git commit -m "Update answers"
+git push
+
+# Vercel auto-redeploys within 30 seconds
+```
 
 ---
 
-## 📐 meta.json Full Schema Reference
+## Folder Structure
 
-```json
-{
-  "id": "unique-test-id",
-  "title": "Test display name",
-  "type": "FULL_PAPER",
-  "instructions": ["Instruction line 1", "..."],
-  "sections": [
-    {
-      "id": "physics",
-      "label": "Physics",
-      "color": "#3b82f6",
-      "questions": [
-        {
-          "id": "phy_1",           // Unique ID across entire test
-          "number": 1,             // Display number within section
-          "type": "MCQ",           // MCQ | NUMERICAL | MSQ | MCQ_MULTI
-          "image": "./tests/.../q1.png",
-          "options": ["A","B","C","D"],   // null for NUMERICAL
-          "correct": "B",          // "A"/"B"/"C"/"D" | "42" | ["A","C"]
-          "marks": 4,
-          "negativeMark": -1,      // 0 for NUMERICAL, -2 for MSQ wrong
-          "solution": "./tests/.../sol1.png",  // null if no image
-          "solutionText": "Text explanation...",
-
-          // Optional: per-option images (if options have diagrams)
-          "optionAImage": "./tests/.../opt_a.png",
-          "optionBImage": "./tests/.../opt_b.png",
-          "optionCImage": "./tests/.../opt_c.png",
-          "optionDImage": "./tests/.../opt_d.png",
-
-          // Optional: per-option text (if options are text-only)
-          "optionAText": "v = u + at",
-          "optionBText": "s = ut + ½at²",
-          "optionCText": "v² = u² + 2as",
-          "optionDText": "All of the above"
-        }
-      ]
-    }
-  ]
-}
 ```
+jee-full/
+├── public/
+│   └── q/
+│       ├── q1.jpg          ← Physics Q1
+│       ├── q2.jpg
+│       │   ...
+│       └── q75.jpg         ← Maths Q75
+├── src/
+│   ├── app/
+│   │   ├── layout.js
+│   │   ├── page.js         ← Full test UI
+│   │   └── globals.css
+│   └── data/
+│       └── questions.js    ← All 75 answers
+├── next.config.js
+└── package.json
+```
+
+## Answer Key Reference (from PDF)
+
+| Section | Q Range | MCQ | Integer |
+|---------|---------|-----|---------|
+| Physics | 1–25 | 1–20 | 21–25 |
+| Chemistry | 26–50 | 26–45 | 46–50 |
+| Mathematics | 51–75 | 51–70 | 71–75 |
+
+> Integer answers in palette shown with **round** buttons to distinguish from MCQ (square).
