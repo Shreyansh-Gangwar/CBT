@@ -1,71 +1,207 @@
-# JEE CBT Platform — Lakshya JEE 2026
+# JEE CBT Portal
 
-A complete Computer Based Test (CBT) web app built with Next.js 14.
+A full JEE Mains/Advanced-style Computer Based Test portal. Deploy on Vercel in minutes.
 
-## Features
-- Multi-test home screen, grouped by subject (Physics / Chemistry / Maths)
-- Last attempt score shown on each test card
-- Configurable countdown timer with red pulsing warning in last 5 minutes
-- JEE Main style question palette (5 colour states)
-- Mark for Review & Next, Clear Response
-- +4 / −1 / 0 marking scheme
-- Confirm dialog before submission
-- Post-submission: highlighted correct/wrong answers + solution per question
-- Full results screen with section-wise breakdown
-- Dark / Light mode toggle
-- Works as a static export (Vercel deployment ready)
+---
 
-## Setup
+## 📁 Project Structure
 
-```bash
-npm install
-npm run dev       # development
-npm run build     # production build (static export in /out)
+```
+jee-cbt/
+├── index.html
+├── app.js                  ← Main app logic (router, CBT, result)
+├── styles/
+│   └── main.css            ← Full theme system (dark/light)
+├── vercel.json             ← Vercel deployment config
+└── tests/
+    ├── index.js            ← TEST REGISTRY — register all tests here
+    └── sample-test-1/
+        ├── meta.json       ← Test structure, questions, answers
+        ├── physics/
+        │   ├── q1.png      ← Question images
+        │   ├── q2.png
+        │   └── sol1.png    ← Solution images (optional)
+        ├── chemistry/
+        └── maths/
 ```
 
-## Deployment (Vercel)
-Push to GitHub and connect to Vercel. The `output: 'export'` config handles static deployment automatically.
+---
 
-## Adding More Tests
+## 🚀 Deploy to Vercel
 
-1. Open `src/data/questions.js`
-2. Add a new object to the `tests` array:
+```bash
+# 1. Push to GitHub
+git init
+git add .
+git commit -m "initial JEE CBT portal"
+git remote add origin https://github.com/YOUR_USERNAME/jee-cbt.git
+git push -u origin main
+
+# 2. Go to vercel.com → New Project → Import your repo
+# 3. Framework: Other (static)  |  Root: ./
+# Done! Live in 30 seconds.
+```
+
+---
+
+## ➕ Adding a New Test
+
+### Step 1 — Create the folder structure
+
+```
+tests/
+└── my-new-test/
+    ├── meta.json
+    ├── physics/
+    │   ├── q1.png
+    │   ├── q2.png
+    │   └── ...
+    ├── chemistry/
+    └── maths/
+```
+
+### Step 2 — Register in `tests/index.js`
 
 ```js
 {
-  id: "pt02",                          // unique string id
-  name: "Practice Test 02",
-  subject: "Physics",                  // for menu grouping
+  id: "my-new-test",
+  title: "JEE Mains 2023 April — Paper 2",
+  type: "FULL_PAPER",         // FULL_PAPER | CHAPTERWISE | PYQ | SECTIONAL
   subjects: ["Physics", "Chemistry", "Mathematics"],
-  chapter: "Chapter Name",
-  duration: 10800,                     // seconds (180 min)
-  date: "DD/MM/YYYY",
-  maxMarks: 300,
-  totalQuestions: 75,
-  questions: [
+  totalQuestions: 90,
+  totalMarks: 300,
+  recommendedTime: 180,
+  difficulty: "Medium",
+  year: 2023,
+  tags: ["PYQ", "April Session"],
+  path: "./tests/my-new-test/meta.json",
+},
+```
+
+### Step 3 — Fill meta.json (see sample-test-1/meta.json for full schema)
+
+---
+
+## 📄 Question Types Supported
+
+| Type | Description | Marking |
+|------|-------------|---------|
+| `MCQ` | Single correct, 4 options | +4 / −1 |
+| `NUMERICAL` | Integer/decimal answer | +4 / 0 |
+| `MSQ` | Multiple correct (JEE Advanced) | +4 full / partial / −2 wrong |
+| `MCQ_MULTI` | Alias for MSQ | same |
+
+---
+
+## 🤖 PROMPT — Convert PDF to Test Files
+
+Use this prompt with Claude or GPT-4o Vision to extract questions from a JEE PDF:
+
+---
+
+```
+You are a JEE exam digitization assistant. I will provide you pages from a JEE Mains/Advanced paper PDF.
+
+Your job:
+1. Extract EVERY question exactly as printed. Do NOT skip any question.
+2. For each page I send, extract each question as a SEPARATE image crop.
+   - Crop must include: question text, diagrams, graphs, sub-parts, ALL options (A/B/C/D).
+   - Crop must NOT include: page header, page number, adjacent questions.
+   - If a question spans two pages, combine both crops.
+3. Name images: q1.png, q2.png ... for questions; sol1.png, sol2.png ... for solutions.
+4. For the answer key page, extract each answer and map it to the correct question number.
+5. Output a valid meta.json following this EXACT schema:
+
+{
+  "id": "REPLACE_WITH_TEST_ID",
+  "title": "REPLACE_WITH_TEST_TITLE",
+  "type": "FULL_PAPER",
+  "instructions": ["..."],
+  "sections": [
     {
-      id: 1,
-      section: "Physics",              // "Physics" | "Chemistry" | "Mathematics"
-      type: "mcq",                     // "mcq" | "integer"
-      questionText: "Question text here...",
-      options: ["Option A", "Option B", "Option C", "Option D"], // MCQ only
-      correctAnswer: 2,                // option number (1-4) for MCQ; integer value for integer type
-      solution: "Step-by-step solution...",
-    },
-    // ... 74 more questions
+      "id": "physics",
+      "label": "Physics",
+      "color": "#3b82f6",
+      "questions": [
+        {
+          "id": "phy_1",
+          "number": 1,
+          "type": "MCQ",
+          "image": "./tests/TEST_ID/physics/q1.png",
+          "options": ["A", "B", "C", "D"],
+          "correct": "B",
+          "marks": 4,
+          "negativeMark": -1,
+          "solution": "./tests/TEST_ID/physics/sol1.png",
+          "solutionText": "Brief solution explanation here."
+        }
+      ]
+    }
   ]
 }
+
+Rules:
+- type is "MCQ" for single correct, "NUMERICAL" for integer answer, "MSQ" for multiple correct.
+- For NUMERICAL: "correct" is a string like "24" or "3.14", "options" is null.
+- For MSQ: "correct" is an array like ["A", "C"], "negativeMark" is -2.
+- Every question MUST have an entry. Never guess or skip.
+- Do not use LaTeX. All math must be in the image crop.
+- Double-check each answer against the answer key before writing it.
+- After building the full JSON, re-read it and verify: (a) question count matches PDF, (b) all image paths are correct, (c) all answers are mapped.
+
+Send me the PDF pages now.
 ```
 
-3. Save the file — the new test appears automatically in the menu under the correct subject.
+---
 
-## Project Structure
-```
-src/
-  app/
-    page.js        ← entire CBT app (single file, client component)
-    layout.js
-    globals.css
-  data/
-    questions.js   ← all test data (add new tests here)
+## 🎨 Theme Customization
+
+Edit CSS variables at the top of `styles/main.css`:
+- Subject colors: `--color-physics`, `--color-chemistry`, `--color-maths`
+- Status colors: `--color-answered`, `--color-not-answered`, etc.
+
+---
+
+## 📐 meta.json Full Schema Reference
+
+```json
+{
+  "id": "unique-test-id",
+  "title": "Test display name",
+  "type": "FULL_PAPER",
+  "instructions": ["Instruction line 1", "..."],
+  "sections": [
+    {
+      "id": "physics",
+      "label": "Physics",
+      "color": "#3b82f6",
+      "questions": [
+        {
+          "id": "phy_1",           // Unique ID across entire test
+          "number": 1,             // Display number within section
+          "type": "MCQ",           // MCQ | NUMERICAL | MSQ | MCQ_MULTI
+          "image": "./tests/.../q1.png",
+          "options": ["A","B","C","D"],   // null for NUMERICAL
+          "correct": "B",          // "A"/"B"/"C"/"D" | "42" | ["A","C"]
+          "marks": 4,
+          "negativeMark": -1,      // 0 for NUMERICAL, -2 for MSQ wrong
+          "solution": "./tests/.../sol1.png",  // null if no image
+          "solutionText": "Text explanation...",
+
+          // Optional: per-option images (if options have diagrams)
+          "optionAImage": "./tests/.../opt_a.png",
+          "optionBImage": "./tests/.../opt_b.png",
+          "optionCImage": "./tests/.../opt_c.png",
+          "optionDImage": "./tests/.../opt_d.png",
+
+          // Optional: per-option text (if options are text-only)
+          "optionAText": "v = u + at",
+          "optionBText": "s = ut + ½at²",
+          "optionCText": "v² = u² + 2as",
+          "optionDText": "All of the above"
+        }
+      ]
+    }
+  ]
+}
 ```
