@@ -31,12 +31,13 @@ export default function App() {
   const [fsWarnings, setFsWarnings] = useState(0)
   const [showFsWarning, setShowFsWarning] = useState(false)
   const [testCancelled, setTestCancelled] = useState(false)
+  const [isPaused, setIsPaused] = useState(false)
   const timerRef = useRef(null)
   const intRef = useRef(null)
 
   // ── TIMER ──
   useEffect(() => {
-    if (phase !== 'test') return
+    if (phase !== 'test' || isPaused) return
     timerRef.current = setInterval(() => {
       setTimeLeft(t => {
         if (t <= 1) { clearInterval(timerRef.current); doSubmit(); return 0 }
@@ -44,7 +45,16 @@ export default function App() {
       })
     }, 1000)
     return () => clearInterval(timerRef.current)
-  }, [phase])
+  }, [phase, isPaused])
+
+  const togglePause = () => {
+    if (isPaused) {
+      setIsPaused(false)
+    } else {
+      clearInterval(timerRef.current)
+      setIsPaused(true)
+    }
+  }
 
   // ── FULLSCREEN HELPERS ──
   const enterFullscreen = useCallback(() => {
@@ -582,9 +592,32 @@ export default function App() {
         </div>
         <div className="hdr-right">
           {submitted && (() => { const { score, maxScore } = computeResults(); return <div className="hdr-score">Score: {score}/{maxScore}</div> })()}
-          <div className="timer">
-            <div className="timer-lbl">Time Left</div>
-            <div className={`timer-val${isTimeLow ? ' timer-warn' : ''}`}>{fmt(timeLeft)}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div className="timer">
+              <div className="timer-lbl">Time Left</div>
+              <div className={`timer-val${isTimeLow ? ' timer-warn' : ''}`}>
+                {fmt(timeLeft)}
+              </div>
+            </div>
+
+            {!submitted && (
+              <button
+                className="btn"
+                onClick={togglePause}
+                style={{
+                  padding: '6px 12px',
+                  fontSize: 12,
+                  borderRadius: 6,
+                  background: isPaused ? '#27ae60' : '#f39c12',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 600
+                }}
+              >
+                {isPaused ? '▶' : '⏸'}
+              </button>
+            )}
           </div>
         </div>
       </header>
