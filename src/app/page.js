@@ -28,9 +28,9 @@ export default function App() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [showSol, setShowSol] = useState(false)
   const [submitted, setSubmitted] = useState(false)
-  const [fsWarnings, setFsWarnings] = useState(0)       // fullscreen exit warning count
-  const [showFsWarning, setShowFsWarning] = useState(false) // warning popup visible
-  const [testCancelled, setTestCancelled] = useState(false) // test cancelled after 3 warnings
+  const [fsWarnings, setFsWarnings] = useState(0)
+  const [showFsWarning, setShowFsWarning] = useState(false)
+  const [testCancelled, setTestCancelled] = useState(false)
   const timerRef = useRef(null)
   const intRef = useRef(null)
 
@@ -67,7 +67,6 @@ export default function App() {
     const handleFsChange = () => {
       const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
       if (!isFs) {
-        // User exited fullscreen
         setFsWarnings(prev => {
           const next = prev + 1
           if (next >= 3) {
@@ -92,7 +91,6 @@ export default function App() {
     }
   }, [phase, submitted, testCancelled])
 
-
   useEffect(() => { setActiveSec(getSectionOf(cur)) }, [cur])
 
   const startTest = () => {
@@ -111,12 +109,10 @@ export default function App() {
   const goTo = useCallback((q) => {
     setStatuses(prev => {
       const n = { ...prev }
-      // mark current before leaving
       const curAns = answers[cur]
       if (n[cur] === STATUS.NV || n[cur] === STATUS.NA) {
         n[cur] = (curAns !== undefined && curAns !== '') ? STATUS.ANS : STATUS.NA
       }
-      // mark destination as visited
       if (n[q] === STATUS.NV) n[q] = STATUS.NA
       return n
     })
@@ -287,89 +283,259 @@ export default function App() {
   // ── RESULTS ──
   if (phase === 'result') {
     const { correct, wrong, skipped, score, maxScore, details } = computeResults()
-    const pct = Math.max(0, Math.round((score / maxScore) * 100))
-    const barColor = score < 0 ? '#e74c3c' : score < 120 ? '#e8a020' : '#27ae60'
     const timeTaken = TOTAL_TIME - timeLeft
     const mm = Math.floor(timeTaken / 60), ss = timeTaken % 60
+    const accuracy = answered === 0 ? 0 : Math.round((correct / answered) * 100)
+    const positiveScore = correct * MARKS_CORRECT
+    const marksLost = wrong * Math.abs(MARKS_WRONG)
+    const qsAttempted = correct + wrong
+
+    // Simulated percentile based on score
+    const rawPct = Math.min(99.99, Math.max(1, (score / maxScore) * 100))
+    const percentile = score <= 0 ? (5 + Math.random() * 10).toFixed(2)
+      : score < 80 ? (30 + rawPct * 0.4).toFixed(2)
+        : score < 150 ? (60 + rawPct * 0.35).toFixed(2)
+          : (85 + rawPct * 0.14).toFixed(2)
+
+    // Section stats
+    const secStats = SECTIONS.map((sec, si) => {
+      const sd = details.filter(d => getSectionOf(d.q) === si)
+      return {
+        ...sec,
+        correct: sd.filter(d => d.status === 'correct').length,
+        wrong: sd.filter(d => d.status === 'wrong').length,
+        skipped: sd.filter(d => d.status === 'skipped').length,
+        score: sd.reduce((a, d) => a + d.score, 0),
+        details: sd,
+      }
+    })
+
+    const secPctLabel = (sc) => {
+      const p = Math.min(99, Math.max(1, 40 + (sc / 100) * 55))
+      return `${p.toFixed(2)}%ile`
+    }
+
+    const resetTest = () => {
+      setPhase('instr'); setCur(1); setAnswers({})
+      setStatuses(() => { const s = {}; for (let i = 1; i <= 75; i++) s[i] = STATUS.NV; return s })
+      setTimeLeft(TOTAL_TIME); setSubmitted(false); setShowSol(false)
+    }
 
     return (
-      <div className="result-bg">
-        <div className="result-card">
-          <div className="result-hdr">
-            <h2>🎯 Test Completed — Practice Test 01</h2>
-            <div style={{ fontSize: 12, opacity: .75 }}>Lakshya JEE 2026 · Physics + Chemistry + Mathematics</div>
-            <div className="result-score" style={{ color: score < 0 ? '#ff7070' : score < 120 ? '#ffe082' : '#7effc4' }}>
-              {score >= 0 ? `+${score}` : score}
+      <div style={{
+        minHeight: '100vh', background: '#f0f2f7', fontFamily: "'Segoe UI', sans-serif",
+        display: 'flex', flexDirection: 'column'
+      }}>
+        {/* Top bar */}
+        <div style={{
+          background: '#fff', borderBottom: '1px solid #e0e4ef', padding: '0 24px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          height: 56, position: 'sticky', top: 0, zIndex: 100,
+          boxShadow: '0 1px 6px rgba(0,0,0,0.06)'
+        }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 18, color: '#1a1a2e' }}>Test Analysis</div>
+            <div style={{ fontSize: 11, color: '#888' }}>Practice Test 01 — 75 Questions · 300 Marks</div>
+          </div>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button onClick={() => setPhase('test')} style={{
+              padding: '8px 18px', borderRadius: 8, border: '1.5px solid #4f46e5',
+              background: '#fff', color: '#4f46e5', fontWeight: 600, fontSize: 13, cursor: 'pointer'
+            }}>📋 View Solutions</button>
+            <button onClick={resetTest} style={{
+              padding: '8px 18px', borderRadius: 8, border: 'none',
+              background: '#4f46e5', color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer'
+            }}>🔄 Retake Test</button>
+          </div>
+        </div>
+
+        <div style={{ padding: '20px 24px', maxWidth: 1100, margin: '0 auto', width: '100%', boxSizing: 'border-box' }}>
+          {/* Overview label */}
+          <div style={{ fontWeight: 700, fontSize: 20, color: '#1a1a2e', marginBottom: 16 }}>Overview</div>
+
+          {/* Top row — Overall Score + Percentile */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            {/* Overall Score card */}
+            <div style={{
+              background: '#fff', borderRadius: 16, padding: '24px 28px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.06)', border: '1px solid #e8eaf6'
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#888', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>Overall Score</div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6 }}>
+                <span style={{
+                  fontSize: 64, fontWeight: 800, lineHeight: 1,
+                  color: score < 0 ? '#e74c3c' : score < 100 ? '#e8a020' : '#4f46e5'
+                }}>{score}</span>
+                <span style={{ fontSize: 22, color: '#aaa', fontWeight: 500, paddingBottom: 6 }}>/300</span>
+              </div>
+              <div style={{ display: 'flex', gap: 28, marginTop: 20 }}>
+                {secStats.map(s => (
+                  <div key={s.id}>
+                    <div style={{ fontSize: 11, color: '#999', marginBottom: 2 }}>{s.label.split(' ')[0]} Score</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                      <span style={{ fontSize: 20, fontWeight: 700, color: s.color }}>{s.score}</span>
+                      <span style={{ fontSize: 11, color: '#bbb' }}>/100</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <div style={{ fontSize: 18, opacity: .7 }}>out of {maxScore} marks</div>
-            <div style={{ fontSize: 12, opacity: .75, marginTop: 6 }}>
-              Accuracy: {answered === 0 ? 0 : Math.round((correct / answered) * 100)}% &nbsp;|&nbsp; Time: {mm}m {ss}s
+
+            {/* Predicted Percentile card */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%)',
+              borderRadius: 16, padding: '24px 28px', position: 'relative', overflow: 'hidden',
+              boxShadow: '0 4px 20px rgba(79,70,229,0.25)'
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#a0aec0', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8 }}>
+                Predicted Percentile
+              </div>
+              <div style={{
+                fontSize: 64, fontWeight: 800, lineHeight: 1,
+                background: 'linear-gradient(90deg, #a78bfa, #60a5fa)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+              }}>{percentile}</div>
+              <div style={{ display: 'flex', gap: 28, marginTop: 20 }}>
+                {secStats.map(s => (
+                  <div key={s.id}>
+                    <div style={{ fontSize: 11, color: '#718096', marginBottom: 2 }}>{s.label.split(' ')[0]}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#a0aec0' }}>{secPctLabel(s.score)}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: '#4a5568', marginTop: 10 }}>
+                Estimated based on this test attempt data.
+              </div>
+              {/* Decorative circles */}
+              <div style={{
+                position: 'absolute', right: -20, top: -20, width: 120, height: 120,
+                borderRadius: '50%', background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.15)'
+              }} />
+              <div style={{
+                position: 'absolute', right: 20, top: 20, width: 60, height: 60,
+                borderRadius: '50%', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.15)'
+              }} />
             </div>
           </div>
-          <div className="result-body">
-            <div className="stats-grid">
-              <div className="stat-c g"><div className="val">{correct}</div><div className="lbl">Correct</div></div>
-              <div className="stat-c r"><div className="val">{wrong}</div><div className="lbl">Wrong</div></div>
-              <div className="stat-c o"><div className="val">{skipped}</div><div className="lbl">Skipped</div></div>
-              <div className="stat-c b"><div className="val">{pct}%</div><div className="lbl">Score %</div></div>
-            </div>
-            <div className="score-bar-wrap">
-              <div className="score-bar" style={{ width: `${pct}%`, background: barColor }} />
-            </div>
 
-            <hr className="result-divider" />
-            <div className="result-sec-title">📝 Section-wise Breakdown</div>
+          {/* Stat tiles — row 1 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 14 }}>
+            {[
+              { icon: '🏆', label: 'ACCURACY', value: `${accuracy}%`, sub: `${qsAttempted} attempted` },
+              { icon: '✅', label: 'CORRECT', value: correct, sub: `+${positiveScore} marks earned` },
+              { icon: '❌', label: 'WRONG', value: wrong, sub: `−${marksLost} marks lost` },
+            ].map(({ icon, label, value, sub }) => (
+              <div key={label} style={{
+                background: '#fff', borderRadius: 14, padding: '18px 20px',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)', border: '1px solid #e8eaf6'
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', letterSpacing: 1 }}>{icon} {label}</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: '#1a1a2e', marginTop: 6, lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
 
-            {SECTIONS.map((sec, si) => {
-              const secDetails = details.filter(d => getSectionOf(d.q) === si)
-              const secCorrect = secDetails.filter(d => d.status === 'correct').length
-              const secWrong = secDetails.filter(d => d.status === 'wrong').length
-              const secScore = secDetails.reduce((a, d) => a + d.score, 0)
-              return (
-                <div className="section-result-group" key={sec.id}>
-                  <div className="srg-hdr" style={{ background: sec.light, color: sec.color }}>
-                    <span>{sec.label}</span>
-                    <span>{secCorrect} correct · {secWrong} wrong · Score: {secScore >= 0 ? '+' + secScore : secScore}/{25 * MARKS_CORRECT}</span>
-                  </div>
-                  <div className="review-list">
-                    {secDetails.map(d => {
-                      const cls = d.status === 'correct' ? 'cr' : d.status === 'wrong' ? 'wr' : d.isInt ? 'it' : 'sk'
-                      return (
-                        <div key={d.q} className={`review-item ${cls}`}>
-                          <div className="review-qn">{d.q}</div>
-                          <div className="review-info">
-                            <div style={{ fontWeight: 700 }}>
-                              {d.status === 'correct' ? '✅ Correct' : d.status === 'wrong' ? '❌ Wrong' : d.isInt ? '⬜ Integer (Unattempted)' : '⬜ Not Attempted'}
-                              {d.isInt && <span style={{ fontSize: 10, marginLeft: 6, opacity: .6 }}>[Integer]</span>}
-                            </div>
-                            <div className="review-ans-row">
-                              <span className="ra-correct">
-                                Correct: {d.isInt ? d.correct_ans : `Option ${LETTERS[d.correct_ans]}`}
-                              </span>
-                              {d.userAns !== undefined && d.status !== 'correct' && (
-                                <span className="ra-user">
-                                  Your answer: {d.isInt ? d.userAns : `Option ${LETTERS[d.userAns]}`}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="review-score-val">{d.score > 0 ? `+${d.score}` : d.score}</div>
-                        </div>
-                      )
-                    })}
-                  </div>
+          {/* Stat tiles — row 2 */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+            {[
+              { icon: '⬜', label: 'SKIPPED', value: skipped, sub: '0 marks' },
+              { icon: '⭐', label: 'POSITIVE SCORE', value: `${positiveScore}`, sub: `out of ${maxScore}` },
+              { icon: '⏱️', label: 'TIME TAKEN', value: `${mm}m`, sub: `${ss}s · ~${Math.round(timeTaken / 75)}s per question` },
+            ].map(({ icon, label, value, sub }) => (
+              <div key={label} style={{
+                background: '#fff', borderRadius: 14, padding: '18px 20px',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)', border: '1px solid #e8eaf6'
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#aaa', letterSpacing: 1 }}>{icon} {label}</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: '#1a1a2e', marginTop: 6, lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: 11, color: '#aaa', marginTop: 4 }}>{sub}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Section-wise breakdown */}
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a2e', marginBottom: 12 }}>Section-wise Breakdown</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 24 }}>
+            {secStats.map(s => (
+              <div key={s.id} style={{
+                background: '#fff', borderRadius: 14, padding: '18px 20px',
+                boxShadow: '0 1px 8px rgba(0,0,0,0.05)', border: `1.5px solid ${s.color}22`
+              }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: s.color, marginBottom: 12 }}>{s.label}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[
+                    ['Score', `${s.score >= 0 ? '+' : ''}${s.score} / 100`, s.score >= 0 ? '#27ae60' : '#e74c3c'],
+                    ['Correct', s.correct, '#27ae60'],
+                    ['Wrong', s.wrong, '#e74c3c'],
+                    ['Skipped', s.skipped, '#888'],
+                  ].map(([l, v, c]) => (
+                    <div key={l} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                      <span style={{ color: '#888' }}>{l}</span>
+                      <span style={{ fontWeight: 700, color: c }}>{v}</span>
+                    </div>
+                  ))}
                 </div>
-              )
-            })}
-
-            <div className="result-actions">
-              <button className="btn-retake" onClick={() => {
-                setPhase('instr'); setCur(1); setAnswers({})
-                setStatuses(() => { const s = {}; for (let i = 1; i <= 75; i++) s[i] = STATUS.NV; return s })
-                setTimeLeft(TOTAL_TIME); setSubmitted(false); setShowSol(false)
-              }}>🔄 Retake Test</button>
-            </div>
+                {/* Mini progress bar */}
+                <div style={{ marginTop: 12, height: 6, background: '#f0f2f7', borderRadius: 99, overflow: 'hidden' }}>
+                  <div style={{
+                    width: `${Math.max(0, (s.score / 100) * 100)}%`,
+                    height: '100%', background: s.color, borderRadius: 99,
+                    transition: 'width 1s ease'
+                  }} />
+                </div>
+              </div>
+            ))}
           </div>
+
+          {/* Question Review */}
+          <div style={{ fontWeight: 700, fontSize: 16, color: '#1a1a2e', marginBottom: 12 }}>Question Review</div>
+          {secStats.map((sec) => (
+            <div key={sec.id} style={{ marginBottom: 20 }}>
+              <div style={{
+                background: sec.color, color: '#fff', borderRadius: '10px 10px 0 0',
+                padding: '10px 16px', fontWeight: 700, fontSize: 13,
+                display: 'flex', justifyContent: 'space-between'
+              }}>
+                <span>{sec.label}</span>
+                <span style={{ opacity: .85 }}>{sec.correct}✅ · {sec.wrong}❌ · {sec.skipped}⬜</span>
+              </div>
+              <div style={{ background: '#fff', borderRadius: '0 0 10px 10px', border: `1px solid ${sec.color}33`, overflow: 'hidden' }}>
+                {sec.details.map((d, i) => (
+                  <div key={d.q} style={{
+                    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+                    borderBottom: i < sec.details.length - 1 ? '1px solid #f0f2f7' : 'none',
+                    background: d.status === 'correct' ? '#f0fdf4' : d.status === 'wrong' ? '#fef2f2' : '#fafafa'
+                  }}>
+                    <div style={{
+                      width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center',
+                      justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0,
+                      background: d.status === 'correct' ? '#dcfce7' : d.status === 'wrong' ? '#fee2e2' : '#f0f2f7',
+                      color: d.status === 'correct' ? '#16a34a' : d.status === 'wrong' ? '#dc2626' : '#aaa',
+                    }}>Q{d.q}</div>
+                    <div style={{ flex: 1, fontSize: 13 }}>
+                      <span style={{ fontWeight: 600, color: d.status === 'correct' ? '#16a34a' : d.status === 'wrong' ? '#dc2626' : '#888' }}>
+                        {d.status === 'correct' ? '✅ Correct' : d.status === 'wrong' ? '❌ Wrong' : '⬜ Not Attempted'}
+                      </span>
+                      {d.isInt && <span style={{ fontSize: 10, color: '#aaa', marginLeft: 6 }}>[Integer]</span>}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#888' }}>
+                      Correct: <strong style={{ color: '#1a1a2e' }}>{d.isInt ? d.correct_ans : `Option ${LETTERS[d.correct_ans]}`}</strong>
+                      {d.userAns !== undefined && d.status !== 'correct' && (
+                        <span style={{ marginLeft: 10, color: '#dc2626' }}>
+                          Yours: {d.isInt ? d.userAns : `Option ${LETTERS[d.userAns]}`}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{
+                      width: 42, textAlign: 'right', fontWeight: 800, fontSize: 14,
+                      color: d.score > 0 ? '#16a34a' : d.score < 0 ? '#dc2626' : '#aaa'
+                    }}>{d.score > 0 ? `+${d.score}` : d.score || '0'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     )
@@ -404,7 +570,6 @@ export default function App() {
     return 'int-input wrong-ans'
   }
 
-  // Section color for active
   const secColor = SECTIONS[activeSec].color
 
   return (
