@@ -2,12 +2,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { SECTIONS, MCQ_QS, INT_QS, ANSWERS, TOTAL_TIME, MARKS_CORRECT, MARKS_WRONG } from '../data/questions'
 
-const LETTERS = ['A','B','C','D']
-const STATUS = { NV:'s-nv', NA:'s-na', ANS:'s-ans', MRK:'s-mrk', MRA:'s-mra' }
+const LETTERS = ['A', 'B', 'C', 'D']
+const STATUS = { NV: 's-nv', NA: 's-na', ANS: 's-ans', MRK: 's-mrk', MRA: 's-mra' }
 
 function fmt(s) {
-  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60
-  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
 function getSectionOf(q) {
@@ -17,19 +17,22 @@ function getSectionOf(q) {
 }
 
 export default function App() {
-  const [phase, setPhase]     = useState('instr') // instr | test | result
-  const [cur,   setCur]       = useState(1)
+  const [phase, setPhase] = useState('instr') // instr | test | result
+  const [cur, setCur] = useState(1)
   const [answers, setAnswers] = useState({})       // qNum -> value (0-3 for MCQ, string for INT)
   const [statuses, setStatuses] = useState(() => {
-    const s = {}; for (let i=1;i<=75;i++) s[i]=STATUS.NV; return s
+    const s = {}; for (let i = 1; i <= 75; i++) s[i] = STATUS.NV; return s
   })
   const [timeLeft, setTimeLeft] = useState(TOTAL_TIME)
   const [activeSec, setActiveSec] = useState(0)
   const [showConfirm, setShowConfirm] = useState(false)
-  const [showSol, setShowSol]     = useState(false)
+  const [showSol, setShowSol] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [fsWarnings, setFsWarnings] = useState(0)       // fullscreen exit warning count
+  const [showFsWarning, setShowFsWarning] = useState(false) // warning popup visible
+  const [testCancelled, setTestCancelled] = useState(false) // test cancelled after 3 warnings
   const timerRef = useRef(null)
-  const intRef   = useRef(null)
+  const intRef = useRef(null)
 
   // ── TIMER ──
   useEffect(() => {
@@ -43,19 +46,67 @@ export default function App() {
     return () => clearInterval(timerRef.current)
   }, [phase])
 
-  // sync active section tab when current question changes
+  // ── FULLSCREEN HELPERS ──
+  const enterFullscreen = useCallback(() => {
+    const el = document.documentElement
+    if (el.requestFullscreen) el.requestFullscreen()
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen()
+    else if (el.mozRequestFullScreen) el.mozRequestFullScreen()
+  }, [])
+
+  const exitFullscreen = useCallback(() => {
+    if (document.exitFullscreen) document.exitFullscreen()
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen()
+    else if (document.mozCancelFullScreen) document.mozCancelFullScreen()
+  }, [])
+
+  // ── FULLSCREEN CHANGE LISTENER ──
+  useEffect(() => {
+    if (phase !== 'test' || submitted || testCancelled) return
+
+    const handleFsChange = () => {
+      const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement)
+      if (!isFs) {
+        // User exited fullscreen
+        setFsWarnings(prev => {
+          const next = prev + 1
+          if (next >= 3) {
+            setTestCancelled(true)
+            setShowFsWarning(false)
+            clearInterval(timerRef.current)
+            return next
+          }
+          setShowFsWarning(true)
+          return next
+        })
+      }
+    }
+
+    document.addEventListener('fullscreenchange', handleFsChange)
+    document.addEventListener('webkitfullscreenchange', handleFsChange)
+    document.addEventListener('mozfullscreenchange', handleFsChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFsChange)
+      document.removeEventListener('webkitfullscreenchange', handleFsChange)
+      document.removeEventListener('mozfullscreenchange', handleFsChange)
+    }
+  }, [phase, submitted, testCancelled])
+
+
   useEffect(() => { setActiveSec(getSectionOf(cur)) }, [cur])
 
   const startTest = () => {
     setStatuses(prev => ({ ...prev, 1: STATUS.NA }))
     setPhase('test')
+    enterFullscreen()
   }
 
   const doSubmit = useCallback(() => {
     clearInterval(timerRef.current)
     setSubmitted(true)
     setPhase('result')
-  }, [])
+    exitFullscreen()
+  }, [exitFullscreen])
 
   const goTo = useCallback((q) => {
     setStatuses(prev => {
@@ -117,9 +168,9 @@ export default function App() {
 
   // ── COMPUTE RESULTS ──
   const computeResults = () => {
-    let correct=0, wrong=0, skipped=0, score=0
+    let correct = 0, wrong = 0, skipped = 0, score = 0
     const details = []
-    for (let q=1; q<=75; q++) {
+    for (let q = 1; q <= 75; q++) {
       const userAns = answers[q]
       const correct_ans = ANSWERS[q]
       const isInt = INT_QS.has(q)
@@ -128,36 +179,36 @@ export default function App() {
       if (isInt) {
         const userNum = userAns !== undefined && userAns !== '' ? Number(userAns) : undefined
         if (userNum === undefined || isNaN(userNum)) {
-          status='skipped'; qscore=0; skipped++
+          status = 'skipped'; qscore = 0; skipped++
         } else if (userNum === correct_ans) {
-          status='correct'; qscore=MARKS_CORRECT; correct++; score+=qscore
+          status = 'correct'; qscore = MARKS_CORRECT; correct++; score += qscore
         } else {
-          status='wrong'; qscore=MARKS_WRONG; wrong++; score+=qscore
+          status = 'wrong'; qscore = MARKS_WRONG; wrong++; score += qscore
         }
         details.push({ q, isInt, userAns: userNum, correct_ans, status, score: qscore })
       } else {
         if (userAns === undefined) {
-          status='skipped'; qscore=0; skipped++
+          status = 'skipped'; qscore = 0; skipped++
         } else if (userAns === correct_ans) {
-          status='correct'; qscore=MARKS_CORRECT; correct++; score+=qscore
+          status = 'correct'; qscore = MARKS_CORRECT; correct++; score += qscore
         } else {
-          status='wrong'; qscore=MARKS_WRONG; wrong++; score+=qscore
+          status = 'wrong'; qscore = MARKS_WRONG; wrong++; score += qscore
         }
         details.push({ q, isInt, userAns, correct_ans, status, score: qscore })
       }
     }
-    return { correct, wrong, skipped, score, maxScore: 75*MARKS_CORRECT, details }
+    return { correct, wrong, skipped, score, maxScore: 75 * MARKS_CORRECT, details }
   }
 
   const answered = Object.keys(answers).filter(q => answers[q] !== '' && answers[q] !== undefined).length
-  const markedCt = Object.values(statuses).filter(s => s===STATUS.MRK||s===STATUS.MRA).length
+  const markedCt = Object.values(statuses).filter(s => s === STATUS.MRK || s === STATUS.MRA).length
 
   // ── INSTRUCTIONS ──
   if (phase === 'instr') return (
     <div className="instr-bg">
       <div className="instr-card">
         <div className="instr-hdr">
-          <div style={{fontSize:12,opacity:.7}}>Physics Wallah — Lakshya JEE 2026</div>
+          <div style={{ fontSize: 12, opacity: .7 }}>Physics Wallah — Lakshya JEE 2026</div>
           <h1>Practice Test — 01</h1>
           <p>Physics · Chemistry · Mathematics &nbsp;|&nbsp; 75 Questions &nbsp;|&nbsp; 300 Marks &nbsp;|&nbsp; 180 Minutes</p>
         </div>
@@ -165,11 +216,11 @@ export default function App() {
           <div className="instr-section">
             <h3>📚 Sections</h3>
             <div className="sec-chips">
-              {[['#1a6bbf','#e8f2fc','Physics','Q1–25 (20 MCQ + 5 Integer)'],
-                ['#1a8c4e','#e8f8ee','Chemistry','Q26–50 (20 MCQ + 5 Integer)'],
-                ['#7b2d8b','#f8e8f8','Mathematics','Q51–75 (20 MCQ + 5 Integer)']].map(([c,bg,name,info])=>(
-                <div key={name} className="sec-chip" style={{background:bg,color:c,border:`1px solid ${c}30`}}>
-                  <strong>{name}</strong><br/><span style={{fontSize:10,fontWeight:400}}>{info}</span>
+              {[['#1a6bbf', '#e8f2fc', 'Physics', 'Q1–25 (20 MCQ + 5 Integer)'],
+              ['#1a8c4e', '#e8f8ee', 'Chemistry', 'Q26–50 (20 MCQ + 5 Integer)'],
+              ['#7b2d8b', '#f8e8f8', 'Mathematics', 'Q51–75 (20 MCQ + 5 Integer)']].map(([c, bg, name, info]) => (
+                <div key={name} className="sec-chip" style={{ background: bg, color: c, border: `1px solid ${c}30` }}>
+                  <strong>{name}</strong><br /><span style={{ fontSize: 10, fontWeight: 400 }}>{info}</span>
                 </div>
               ))}
             </div>
@@ -180,8 +231,8 @@ export default function App() {
             <table className="marks-tbl">
               <thead><tr><th>Question Type</th><th>Correct</th><th>Wrong</th><th>Unattempted</th></tr></thead>
               <tbody>
-                <tr><td>MCQ (Single Correct)</td><td style={{color:'#27ae60',fontWeight:700}}>+4</td><td style={{color:'#c0392b',fontWeight:700}}>−1</td><td>0</td></tr>
-                <tr><td>Integer Type</td><td style={{color:'#27ae60',fontWeight:700}}>+4</td><td style={{color:'#c0392b',fontWeight:700}}>−1</td><td>0</td></tr>
+                <tr><td>MCQ (Single Correct)</td><td style={{ color: '#27ae60', fontWeight: 700 }}>+4</td><td style={{ color: '#c0392b', fontWeight: 700 }}>−1</td><td>0</td></tr>
+                <tr><td>Integer Type</td><td style={{ color: '#27ae60', fontWeight: 700 }}>+4</td><td style={{ color: '#c0392b', fontWeight: 700 }}>−1</td><td>0</td></tr>
               </tbody>
             </table>
           </div>
@@ -189,14 +240,14 @@ export default function App() {
           <div className="instr-section">
             <h3>🎨 Question Status Legend</h3>
             {[
-              ['#d0d8e8','Not Visited — You have not opened this question yet'],
-              ['#e74c3c','Not Answered — Visited but no answer selected'],
-              ['#27ae60','Answered — Answer selected/entered'],
-              ['#7b2d8b','Marked for Review — Flagged, no answer'],
-              ['#7b2d8b','Marked for Review + Answered — Will be evaluated (green outline)'],
-            ].map(([c,t],i)=>(
+              ['#d0d8e8', 'Not Visited — You have not opened this question yet'],
+              ['#e74c3c', 'Not Answered — Visited but no answer selected'],
+              ['#27ae60', 'Answered — Answer selected/entered'],
+              ['#7b2d8b', 'Marked for Review — Flagged, no answer'],
+              ['#7b2d8b', 'Marked for Review + Answered — Will be evaluated (green outline)'],
+            ].map(([c, t], i) => (
               <div className="instr-row" key={i}>
-                <div className="instr-dot" style={{background:c, outline: i===4?'2px solid #27ae60':''}} />
+                <div className="instr-dot" style={{ background: c, outline: i === 4 ? '2px solid #27ae60' : '' }} />
                 <span>{t}</span>
               </div>
             ))}
@@ -205,6 +256,7 @@ export default function App() {
           <div className="instr-section">
             <h3>📌 Instructions</h3>
             {[
+              'The test will launch in fullscreen mode. Exiting fullscreen will show a warning — 3 exits will cancel the test.',
               'Each section has 20 Single Correct MCQ questions and 5 Integer Type questions.',
               'For Integer Type: type your numerical answer in the input box (0–999).',
               'Timer counts down from 3:00:00 and the test auto-submits when it reaches zero.',
@@ -212,9 +264,9 @@ export default function App() {
               'Marked + Answered questions ARE evaluated — the mark is only a reminder.',
               'You can change or clear your answer any number of times before submission.',
               'Navigate between questions using the palette on the right or Prev/Next buttons.',
-            ].map((t,i)=>(
+            ].map((t, i) => (
               <div className="instr-row" key={i}>
-                <span style={{color:SECTIONS[0].color,fontWeight:700,minWidth:18}}>{i+1}.</span>
+                <span style={{ color: SECTIONS[0].color, fontWeight: 700, minWidth: 18 }}>{i + 1}.</span>
                 <span>{t}</span>
               </div>
             ))}
@@ -231,23 +283,23 @@ export default function App() {
   // ── RESULTS ──
   if (phase === 'result') {
     const { correct, wrong, skipped, score, maxScore, details } = computeResults()
-    const pct = Math.max(0, Math.round((score/maxScore)*100))
+    const pct = Math.max(0, Math.round((score / maxScore) * 100))
     const barColor = score < 0 ? '#e74c3c' : score < 120 ? '#e8a020' : '#27ae60'
     const timeTaken = TOTAL_TIME - timeLeft
-    const mm = Math.floor(timeTaken/60), ss = timeTaken%60
+    const mm = Math.floor(timeTaken / 60), ss = timeTaken % 60
 
     return (
       <div className="result-bg">
         <div className="result-card">
           <div className="result-hdr">
             <h2>🎯 Test Completed — Practice Test 01</h2>
-            <div style={{fontSize:12,opacity:.75}}>Lakshya JEE 2026 · Physics + Chemistry + Mathematics</div>
-            <div className="result-score" style={{color: score<0?'#ff7070':score<120?'#ffe082':'#7effc4'}}>
+            <div style={{ fontSize: 12, opacity: .75 }}>Lakshya JEE 2026 · Physics + Chemistry + Mathematics</div>
+            <div className="result-score" style={{ color: score < 0 ? '#ff7070' : score < 120 ? '#ffe082' : '#7effc4' }}>
               {score >= 0 ? `+${score}` : score}
             </div>
-            <div style={{fontSize:18,opacity:.7}}>out of {maxScore} marks</div>
-            <div style={{fontSize:12,opacity:.75,marginTop:6}}>
-              Accuracy: {answered===0?0:Math.round((correct/answered)*100)}% &nbsp;|&nbsp; Time: {mm}m {ss}s
+            <div style={{ fontSize: 18, opacity: .7 }}>out of {maxScore} marks</div>
+            <div style={{ fontSize: 12, opacity: .75, marginTop: 6 }}>
+              Accuracy: {answered === 0 ? 0 : Math.round((correct / answered) * 100)}% &nbsp;|&nbsp; Time: {mm}m {ss}s
             </div>
           </div>
           <div className="result-body">
@@ -258,33 +310,33 @@ export default function App() {
               <div className="stat-c b"><div className="val">{pct}%</div><div className="lbl">Score %</div></div>
             </div>
             <div className="score-bar-wrap">
-              <div className="score-bar" style={{width:`${pct}%`,background:barColor}} />
+              <div className="score-bar" style={{ width: `${pct}%`, background: barColor }} />
             </div>
 
-            <hr className="result-divider"/>
+            <hr className="result-divider" />
             <div className="result-sec-title">📝 Section-wise Breakdown</div>
 
             {SECTIONS.map((sec, si) => {
               const secDetails = details.filter(d => getSectionOf(d.q) === si)
-              const secCorrect = secDetails.filter(d=>d.status==='correct').length
-              const secWrong   = secDetails.filter(d=>d.status==='wrong').length
-              const secScore   = secDetails.reduce((a,d)=>a+d.score,0)
+              const secCorrect = secDetails.filter(d => d.status === 'correct').length
+              const secWrong = secDetails.filter(d => d.status === 'wrong').length
+              const secScore = secDetails.reduce((a, d) => a + d.score, 0)
               return (
                 <div className="section-result-group" key={sec.id}>
-                  <div className="srg-hdr" style={{background:sec.light,color:sec.color}}>
+                  <div className="srg-hdr" style={{ background: sec.light, color: sec.color }}>
                     <span>{sec.label}</span>
-                    <span>{secCorrect} correct · {secWrong} wrong · Score: {secScore>=0?'+'+secScore:secScore}/{25*MARKS_CORRECT}</span>
+                    <span>{secCorrect} correct · {secWrong} wrong · Score: {secScore >= 0 ? '+' + secScore : secScore}/{25 * MARKS_CORRECT}</span>
                   </div>
                   <div className="review-list">
                     {secDetails.map(d => {
-                      const cls = d.status==='correct'?'cr':d.status==='wrong'?'wr':d.isInt?'it':'sk'
+                      const cls = d.status === 'correct' ? 'cr' : d.status === 'wrong' ? 'wr' : d.isInt ? 'it' : 'sk'
                       return (
                         <div key={d.q} className={`review-item ${cls}`}>
                           <div className="review-qn">{d.q}</div>
                           <div className="review-info">
-                            <div style={{fontWeight:700}}>
-                              {d.status==='correct'?'✅ Correct':d.status==='wrong'?'❌ Wrong':d.isInt?'⬜ Integer (Unattempted)':'⬜ Not Attempted'}
-                              {d.isInt && <span style={{fontSize:10,marginLeft:6,opacity:.6}}>[Integer]</span>}
+                            <div style={{ fontWeight: 700 }}>
+                              {d.status === 'correct' ? '✅ Correct' : d.status === 'wrong' ? '❌ Wrong' : d.isInt ? '⬜ Integer (Unattempted)' : '⬜ Not Attempted'}
+                              {d.isInt && <span style={{ fontSize: 10, marginLeft: 6, opacity: .6 }}>[Integer]</span>}
                             </div>
                             <div className="review-ans-row">
                               <span className="ra-correct">
@@ -297,7 +349,7 @@ export default function App() {
                               )}
                             </div>
                           </div>
-                          <div className="review-score-val">{d.score>0?`+${d.score}`:d.score}</div>
+                          <div className="review-score-val">{d.score > 0 ? `+${d.score}` : d.score}</div>
                         </div>
                       )
                     })}
@@ -307,9 +359,9 @@ export default function App() {
             })}
 
             <div className="result-actions">
-              <button className="btn-retake" onClick={()=>{
+              <button className="btn-retake" onClick={() => {
                 setPhase('instr'); setCur(1); setAnswers({})
-                setStatuses(()=>{ const s={}; for(let i=1;i<=75;i++) s[i]=STATUS.NV; return s })
+                setStatuses(() => { const s = {}; for (let i = 1; i <= 75; i++) s[i] = STATUS.NV; return s })
                 setTimeLeft(TOTAL_TIME); setSubmitted(false); setShowSol(false)
               }}>🔄 Retake Test</button>
             </div>
@@ -331,7 +383,7 @@ export default function App() {
   const optClass = (idx) => {
     let c = 'opt-btn'
     if (submitted) {
-      if (idx === correctAns)  c += ' right'
+      if (idx === correctAns) c += ' right'
       else if (idx === userAns && userAns !== correctAns) c += ' wrong'
     } else {
       if (idx === userAns) c += ' sel'
@@ -360,23 +412,23 @@ export default function App() {
           <div className="hdr-sub">Physics · Chemistry · Mathematics &nbsp;|&nbsp; 75 Qs · 300 Marks · +4/−1</div>
         </div>
         <div className="hdr-right">
-          {submitted && (() => { const {score,maxScore}=computeResults(); return <div className="hdr-score">Score: {score}/{maxScore}</div> })()}
+          {submitted && (() => { const { score, maxScore } = computeResults(); return <div className="hdr-score">Score: {score}/{maxScore}</div> })()}
           <div className="timer">
             <div className="timer-lbl">Time Left</div>
-            <div className={`timer-val${isTimeLow?' timer-warn':''}`}>{fmt(timeLeft)}</div>
+            <div className={`timer-val${isTimeLow ? ' timer-warn' : ''}`}>{fmt(timeLeft)}</div>
           </div>
         </div>
       </header>
 
       {/* ── SECTION TABS ── */}
       <div className="sec-tabs">
-        {SECTIONS.map((s,i)=>{
-          const answered_in_sec = s.qs.filter(q=>answers[q]!==undefined&&answers[q]!=='').length
-          const activeClass = i===activeSec ? `sec-tab active-${s.id==='physics'?'phys':s.id==='chemistry'?'chem':'math'}` : 'sec-tab'
+        {SECTIONS.map((s, i) => {
+          const answered_in_sec = s.qs.filter(q => answers[q] !== undefined && answers[q] !== '').length
+          const activeClass = i === activeSec ? `sec-tab active-${s.id === 'physics' ? 'phys' : s.id === 'chemistry' ? 'chem' : 'math'}` : 'sec-tab'
           return (
             <button key={s.id} className={activeClass}
-              onClick={()=>{ setActiveSec(i); goTo(s.qs[0]) }}
-              style={i===activeSec?{borderColor:s.color,color:s.color}:{}}>
+              onClick={() => { setActiveSec(i); goTo(s.qs[0]) }}
+              style={i === activeSec ? { borderColor: s.color, color: s.color } : {}}>
               <span className="sec-tab-label">{s.label}</span>
               <span className="sec-tab-count">{answered_in_sec}/{s.qs.length} done</span>
             </button>
@@ -388,25 +440,25 @@ export default function App() {
       <div className="layout">
 
         {/* ── QUESTION PANEL ── */}
-        <div className="qpanel" style={{marginRight:'260px'}}>
+        <div className="qpanel" style={{ marginRight: '260px' }}>
 
           {/* Q header */}
           <div className="qhdr">
             <div className="qhdr-left">
-              <span className="qnum-badge" style={{color:secColor}}>Q{cur}</span>
-              <span className={`qtype-badge ${isMCQ?'qtype-mcq':'qtype-int'}`}>
+              <span className="qnum-badge" style={{ color: secColor }}>Q{cur}</span>
+              <span className={`qtype-badge ${isMCQ ? 'qtype-mcq' : 'qtype-int'}`}>
                 {isMCQ ? 'Single Correct' : 'Integer Type'}
               </span>
               {submitted && (() => {
                 const isCorrect = isMCQ
                   ? userAns === correctAns
-                  : (userAns!==undefined&&userAns!==''&&Number(userAns)===correctAns)
+                  : (userAns !== undefined && userAns !== '' && Number(userAns) === correctAns)
                 const isWrong = isMCQ
                   ? userAns !== undefined && userAns !== correctAns
-                  : (userAns!==undefined&&userAns!==''&&Number(userAns)!==correctAns)
-                return <span className={`qtype-badge ${isCorrect?'qtype-mcq':isWrong?'qtype-int':''}`}
-                  style={isCorrect?{background:'#e8f8f0',color:'#27ae60'}:isWrong?{background:'#fdecea',color:'#c0392b'}:{background:'#f4f4f4',color:'#888'}}>
-                  {isCorrect?'✅ +4':isWrong?'❌ −1':'⬜ 0'}
+                  : (userAns !== undefined && userAns !== '' && Number(userAns) !== correctAns)
+                return <span className={`qtype-badge ${isCorrect ? 'qtype-mcq' : isWrong ? 'qtype-int' : ''}`}
+                  style={isCorrect ? { background: '#e8f8f0', color: '#27ae60' } : isWrong ? { background: '#fdecea', color: '#c0392b' } : { background: '#f4f4f4', color: '#888' }}>
+                  {isCorrect ? '✅ +4' : isWrong ? '❌ −1' : '⬜ 0'}
                 </span>
               })()}
             </div>
@@ -418,9 +470,9 @@ export default function App() {
 
           {/* Question Image */}
           <div className="qcontent">
-            <div style={{width:'100%',maxWidth:780}}>
+            <div style={{ width: '100%', maxWidth: 780 }}>
               <div className="qimg-wrap">
-                <img src={`/q/q${cur}.jpg`} alt={`Question ${cur}`} draggable={false}/>
+                <img src={`/q/q${cur}.jpg`} alt={`Question ${cur}`} draggable={false} />
               </div>
 
               {/* MCQ options */}
@@ -428,9 +480,9 @@ export default function App() {
                 <div className="options-area">
                   <div className="options-lbl">Select your answer</div>
                   <div className="options-grid">
-                    {LETTERS.map((l,idx)=>(
+                    {LETTERS.map((l, idx) => (
                       <button key={idx} className={optClass(idx)}
-                        onClick={()=>pickMCQ(idx)} disabled={submitted}>
+                        onClick={() => pickMCQ(idx)} disabled={submitted}>
                         <span className="opt-letter">{l}</span>
                         <span>Option {l}</span>
                       </button>
@@ -463,8 +515,8 @@ export default function App() {
                       }
                       return (
                         <div className="int-wrong-show">
-                          <span style={{color:'#c0392b',fontWeight:700}}>❌ Your answer: {userNum}</span>
-                          <span style={{color:'#27ae60',fontWeight:700}}>✅ Correct: {correctAns}</span>
+                          <span style={{ color: '#c0392b', fontWeight: 700 }}>❌ Your answer: {userNum}</span>
+                          <span style={{ color: '#27ae60', fontWeight: 700 }}>✅ Correct: {correctAns}</span>
                         </div>
                       )
                     })()}
@@ -478,7 +530,7 @@ export default function App() {
                   <div className="sol-title">💡 Answer — Q{cur}</div>
                   <div className="sol-body">
                     {isMCQ
-                      ? `Correct Answer: Option ${LETTERS[correctAns]} (${correctAns+1})`
+                      ? `Correct Answer: Option ${LETTERS[correctAns]} (${correctAns + 1})`
                       : `Correct Answer: ${correctAns}`
                     }
                   </div>
@@ -489,18 +541,18 @@ export default function App() {
 
           {/* Bottom bar */}
           <div className="bbar">
-            <button className="btn btn-prev" onClick={()=>goTo(cur-1)} disabled={cur===1}>← Prev</button>
-            <button className="btn btn-next" onClick={()=>goTo(cur+1)} disabled={cur===75}>Next →</button>
+            <button className="btn btn-prev" onClick={() => goTo(cur - 1)} disabled={cur === 1}>← Prev</button>
+            <button className="btn btn-next" onClick={() => goTo(cur + 1)} disabled={cur === 75}>Next →</button>
             {!submitted && <>
               <button className="btn btn-rev" onClick={markReview}>🔖 Mark for Review & Next</button>
               <button className="btn btn-clr" onClick={clearResponse}
-                disabled={userAns===undefined||userAns===''}>Clear Response</button>
+                disabled={userAns === undefined || userAns === ''}>Clear Response</button>
             </>}
-            {submitted && <button className="btn btn-sol" onClick={()=>setShowSol(s=>!s)}>
-              {showSol?'🙈 Hide Answer':'💡 Show Answer'}
+            {submitted && <button className="btn btn-sol" onClick={() => setShowSol(s => !s)}>
+              {showSol ? '🙈 Hide Answer' : '💡 Show Answer'}
             </button>}
-            {!submitted && <button className="btn btn-sub" onClick={()=>setShowConfirm(true)}>Submit Test ✓</button>}
-            {submitted  && <button className="btn btn-res" onClick={()=>setPhase('result')}>📊 View Results</button>}
+            {!submitted && <button className="btn btn-sub" onClick={() => setShowConfirm(true)}>Submit Test ✓</button>}
+            {submitted && <button className="btn btn-res" onClick={() => setPhase('result')}>📊 View Results</button>}
           </div>
         </div>
 
@@ -508,30 +560,30 @@ export default function App() {
         <div className="palette">
           <div className="pal-hdr">Question Palette</div>
           <div className="pal-legend">
-            {[['#d0d8e8','Not Visited'],['#e74c3c','Not Answered'],
-              ['#27ae60','Answered'],['#7b2d8b','Marked']].map(([c,l])=>(
-              <div className="leg" key={l}><div className="leg-dot" style={{background:c}}/><span>{l}</span></div>
+            {[['#d0d8e8', 'Not Visited'], ['#e74c3c', 'Not Answered'],
+            ['#27ae60', 'Answered'], ['#7b2d8b', 'Marked']].map(([c, l]) => (
+              <div className="leg" key={l}><div className="leg-dot" style={{ background: c }} /><span>{l}</span></div>
             ))}
           </div>
           <div className="pal-marking">
             <strong>Marking:</strong> MCQ & Integer &nbsp;|&nbsp;
-            <span style={{color:'#27ae60',fontWeight:700}}>+4</span> correct &nbsp;
-            <span style={{color:'#c0392b',fontWeight:700}}>−1</span> wrong &nbsp; 0 skip
+            <span style={{ color: '#27ae60', fontWeight: 700 }}>+4</span> correct &nbsp;
+            <span style={{ color: '#c0392b', fontWeight: 700 }}>−1</span> wrong &nbsp; 0 skip
           </div>
 
           <div className="pal-grid">
-            {SECTIONS.map((s,si) => (
+            {SECTIONS.map((s, si) => (
               <>
                 <div key={`hdr${si}`} style={{
-                  gridColumn:'1/-1', fontSize:10, fontWeight:800, color:s.color,
-                  background:s.light, padding:'3px 6px', borderRadius:4, marginTop: si>0?4:0
+                  gridColumn: '1/-1', fontSize: 10, fontWeight: 800, color: s.color,
+                  background: s.light, padding: '3px 6px', borderRadius: 4, marginTop: si > 0 ? 4 : 0
                 }}>{s.label}</div>
                 {s.qs.map(q => (
                   <button key={q}
-                    className={`pb ${statuses[q]}${q===cur?' active':''}`}
-                    onClick={()=>goTo(q)}
-                    title={`Q${q}${INT_QS.has(q)?' [Int]':''}`}
-                    style={INT_QS.has(q)?{borderRadius:'50%'}:{}}
+                    className={`pb ${statuses[q]}${q === cur ? ' active' : ''}`}
+                    onClick={() => goTo(q)}
+                    title={`Q${q}${INT_QS.has(q) ? ' [Int]' : ''}`}
+                    style={INT_QS.has(q) ? { borderRadius: '50%' } : {}}
                   >{q}</button>
                 ))}
               </>
@@ -540,12 +592,12 @@ export default function App() {
 
           <div className="pal-stats">
             {[
-              ['Answered',   Object.values(statuses).filter(s=>s===STATUS.ANS||s===STATUS.MRA).length, '#27ae60'],
-              ['Not Answered',Object.values(statuses).filter(s=>s===STATUS.NA).length, '#e74c3c'],
-              ['Marked',     markedCt, '#7b2d8b'],
-              ['Not Visited',Object.values(statuses).filter(s=>s===STATUS.NV).length, '#999'],
-            ].map(([l,v,c])=>(
-              <div className="pstat" key={l}><span>{l}</span><span style={{color:c}}>{v}</span></div>
+              ['Answered', Object.values(statuses).filter(s => s === STATUS.ANS || s === STATUS.MRA).length, '#27ae60'],
+              ['Not Answered', Object.values(statuses).filter(s => s === STATUS.NA).length, '#e74c3c'],
+              ['Marked', markedCt, '#7b2d8b'],
+              ['Not Visited', Object.values(statuses).filter(s => s === STATUS.NV).length, '#999'],
+            ].map(([l, v, c]) => (
+              <div className="pstat" key={l}><span>{l}</span><span style={{ color: c }}>{v}</span></div>
             ))}
           </div>
         </div>
@@ -553,24 +605,93 @@ export default function App() {
 
       {/* ── CONFIRM MODAL ── */}
       {showConfirm && (
-        <div className="modal-bg" onClick={()=>setShowConfirm(false)}>
-          <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-bg" onClick={() => setShowConfirm(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-icon">⚠️</div>
             <div className="modal-title">Submit Test?</div>
             <div className="modal-text">Once submitted, you cannot change your answers.</div>
             <div className="modal-stats">
               {[
                 ['✅ Answered', answered],
-                ['❌ Not Answered', 75-answered],
+                ['❌ Not Answered', 75 - answered],
                 ['🔖 Marked for Review', markedCt],
                 ['⏱️ Time Remaining', fmt(timeLeft)],
-              ].map(([l,v])=>(
+              ].map(([l, v]) => (
                 <div className="msr" key={l}><span>{l}</span><strong>{v}</strong></div>
               ))}
             </div>
             <div className="modal-btns">
-              <button className="btn btn-cancel" onClick={()=>setShowConfirm(false)}>Cancel</button>
+              <button className="btn btn-cancel" onClick={() => setShowConfirm(false)}>Cancel</button>
               <button className="btn btn-confirm" onClick={doSubmit}>Submit Now</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── FULLSCREEN WARNING MODAL ── */}
+      {showFsWarning && !testCancelled && (
+        <div className="modal-bg">
+          <div className="modal" style={{ borderTop: '4px solid #e67e22' }}>
+            <div className="modal-icon">🖥️</div>
+            <div className="modal-title" style={{ color: '#e67e22' }}>Fullscreen Required!</div>
+            <div className="modal-text">
+              The test must be taken in fullscreen mode.<br />
+              Exiting fullscreen may result in test cancellation.
+            </div>
+            <div className="modal-stats" style={{ background: '#fff8f0', border: '1px solid #e67e2230' }}>
+              <div className="msr">
+                <span>⚠️ Warnings Used</span>
+                <strong style={{ color: '#e67e22' }}>{fsWarnings} / 3</strong>
+              </div>
+              <div className="msr">
+                <span>🚫 Remaining Chances</span>
+                <strong style={{ color: 3 - fsWarnings === 1 ? '#e74c3c' : '#e67e22' }}>{3 - fsWarnings}</strong>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: '#c0392b', textAlign: 'center', marginTop: 4, fontWeight: 600 }}>
+              {3 - fsWarnings === 1
+                ? '⛔ One more exit will CANCEL your test!'
+                : `${3 - fsWarnings} more exits will cancel your test.`}
+            </div>
+            <div className="modal-btns">
+              <button className="btn btn-confirm" style={{ background: '#e67e22' }}
+                onClick={() => { setShowFsWarning(false); enterFullscreen() }}>
+                🔲 Return to Fullscreen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── TEST CANCELLED SCREEN ── */}
+      {testCancelled && (
+        <div className="modal-bg" style={{ background: 'rgba(0,0,0,0.92)' }}>
+          <div className="modal" style={{ borderTop: '4px solid #e74c3c', maxWidth: 440 }}>
+            <div className="modal-icon" style={{ fontSize: 48 }}>🚫</div>
+            <div className="modal-title" style={{ color: '#e74c3c', fontSize: 22 }}>Test Cancelled</div>
+            <div className="modal-text" style={{ fontSize: 14 }}>
+              You exited fullscreen <strong>3 times</strong>.<br />
+              Your test has been automatically cancelled as per the exam rules.
+            </div>
+            <div className="modal-stats" style={{ background: '#fff0f0', border: '1px solid #e74c3c30' }}>
+              {[
+                ['📝 Questions Answered', answered],
+                ['⏱️ Time Used', fmt(TOTAL_TIME - timeLeft)],
+                ['⚠️ Fullscreen Violations', 3],
+              ].map(([l, v]) => (
+                <div className="msr" key={l}><span>{l}</span><strong>{v}</strong></div>
+              ))}
+            </div>
+            <div className="modal-btns">
+              <button className="btn btn-confirm" style={{ background: '#e74c3c' }}
+                onClick={() => {
+                  setPhase('instr'); setCur(1); setAnswers({})
+                  setStatuses(() => { const s = {}; for (let i = 1; i <= 75; i++) s[i] = STATUS.NV; return s })
+                  setTimeLeft(TOTAL_TIME); setSubmitted(false); setShowSol(false)
+                  setFsWarnings(0); setShowFsWarning(false); setTestCancelled(false)
+                }}>
+                🔄 Start Over
+              </button>
             </div>
           </div>
         </div>
