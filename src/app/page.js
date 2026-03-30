@@ -240,14 +240,18 @@ export default function App() {
           <div className="instr-section">
             <h3>🎨 Question Status Legend</h3>
             {[
-              ['#d0d8e8', 'Not Visited — You have not opened this question yet'],
-              ['#e74c3c', 'Not Answered — Visited but no answer selected'],
-              ['#27ae60', 'Answered — Answer selected/entered'],
-              ['#7b2d8b', 'Marked for Review — Flagged, no answer'],
-              ['#7b2d8b', 'Marked for Review + Answered — Will be evaluated (green outline)'],
+              ['#b0bec5', 'Not Visited — You have not opened this question yet'],
+              ['#ff5252', 'Not Answered — Visited but no answer selected'],
+              ['#00c853', 'Answered — Answer selected/entered'],
+              ['#aa00ff', 'Marked for Review — Flagged, no answer'],
+              ['#aa00ff', 'Marked for Review + Answered — Will be evaluated (green outline)'],
             ].map(([c, t], i) => (
               <div className="instr-row" key={i}>
-                <div className="instr-dot" style={{ background: c, outline: i === 4 ? '2px solid #27ae60' : '' }} />
+                <div className="instr-dot" style={{
+                  background: c,
+                  outline: i === 4 ? '2px solid #00c853' : '',
+                  borderRadius: i === 4 ? '50%' : '3px'
+                }} />
                 <span>{t}</span>
               </div>
             ))}
@@ -406,7 +410,7 @@ export default function App() {
   return (
     <>
       {/* ── HEADER ── */}
-      <header className="hdr">
+      <header className="hdr" style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 100 }}>
         <div className="hdr-left">
           <div className="hdr-title">Lakshya JEE 2026 — Practice Test 01</div>
           <div className="hdr-sub">Physics · Chemistry · Mathematics &nbsp;|&nbsp; 75 Qs · 300 Marks · +4/−1</div>
@@ -421,7 +425,7 @@ export default function App() {
       </header>
 
       {/* ── SECTION TABS ── */}
-      <div className="sec-tabs">
+      <div className="sec-tabs" style={{ position: "fixed", top: "48px", left: 0, right: 0, zIndex: 99 }}>
         {SECTIONS.map((s, i) => {
           const answered_in_sec = s.qs.filter(q => answers[q] !== undefined && answers[q] !== '').length
           const activeClass = i === activeSec ? `sec-tab active-${s.id === 'physics' ? 'phys' : s.id === 'chemistry' ? 'chem' : 'math'}` : 'sec-tab'
@@ -437,10 +441,13 @@ export default function App() {
       </div>
 
       {/* ── MAIN LAYOUT ── */}
-      <div className="layout">
+      <div className="layout" style={{
+        display: 'flex', position: 'fixed', top: 'calc(48px + 42px)', left: 0, right: 0, bottom: 0,
+        overflow: 'hidden'
+      }}>
 
         {/* ── QUESTION PANEL ── */}
-        <div className="qpanel" style={{ marginRight: '260px' }}>
+        <div className="qpanel" style={{ marginRight: '260px', flex: 1, overflowY: 'auto', height: '100%' }}>
 
           {/* Q header */}
           <div className="qhdr">
@@ -479,7 +486,7 @@ export default function App() {
               {isMCQ && (
                 <div className="options-area">
                   <div className="options-lbl">Select your answer</div>
-                  <div className="options-grid">
+                  <div className="options-grid" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     {LETTERS.map((l, idx) => (
                       <button key={idx} className={optClass(idx)}
                         onClick={() => pickMCQ(idx)} disabled={submitted}>
@@ -557,12 +564,28 @@ export default function App() {
         </div>
 
         {/* ── PALETTE ── */}
-        <div className="palette">
+        <div className="palette" style={{
+          position: 'fixed', top: 'calc(48px + 42px)', right: 0, bottom: 0,
+          width: '260px', overflowY: 'auto', borderLeft: '1px solid #e0e4ef',
+          background: '#fff', zIndex: 10
+        }}>
           <div className="pal-hdr">Question Palette</div>
           <div className="pal-legend">
-            {[['#d0d8e8', 'Not Visited'], ['#e74c3c', 'Not Answered'],
-            ['#27ae60', 'Answered'], ['#7b2d8b', 'Marked']].map(([c, l]) => (
-              <div className="leg" key={l}><div className="leg-dot" style={{ background: c }} /><span>{l}</span></div>
+            {[
+              ['#b0bec5', '#546e7a', 'Not Visited'],
+              ['#ff5252', '#b71c1c', 'Not Answered'],
+              ['#00c853', '#1b5e20', 'Answered'],
+              ['#aa00ff', '#6200ea', 'Marked (No Ans)'],
+              ['#aa00ff', '#6200ea', 'Marked + Answered'],
+            ].map(([bg, txt, l], i) => (
+              <div className="leg" key={l} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, marginBottom: 2 }}>
+                <div className="leg-dot" style={{
+                  background: bg, border: i === 4 ? '2px solid #00c853' : 'none',
+                  borderRadius: i === 4 ? '50%' : '3px',
+                  width: 16, height: 16, flexShrink: 0
+                }} />
+                <span style={{ color: '#333' }}>{l}</span>
+              </div>
             ))}
           </div>
           <div className="pal-marking">
@@ -571,7 +594,10 @@ export default function App() {
             <span style={{ color: '#c0392b', fontWeight: 700 }}>−1</span> wrong &nbsp; 0 skip
           </div>
 
-          <div className="pal-grid">
+          <div className="pal-grid" style={{
+            '--c-nv': '#b0bec5', '--c-na': '#ff5252', '--c-ans': '#00c853',
+            '--c-mrk': '#aa00ff', '--c-mra': '#aa00ff'
+          }}>
             {SECTIONS.map((s, si) => (
               <>
                 <div key={`hdr${si}`} style={{
@@ -592,12 +618,12 @@ export default function App() {
 
           <div className="pal-stats">
             {[
-              ['Answered', Object.values(statuses).filter(s => s === STATUS.ANS || s === STATUS.MRA).length, '#27ae60'],
-              ['Not Answered', Object.values(statuses).filter(s => s === STATUS.NA).length, '#e74c3c'],
-              ['Marked', markedCt, '#7b2d8b'],
-              ['Not Visited', Object.values(statuses).filter(s => s === STATUS.NV).length, '#999'],
+              ['Answered', Object.values(statuses).filter(s => s === STATUS.ANS || s === STATUS.MRA).length, '#00c853'],
+              ['Not Answered', Object.values(statuses).filter(s => s === STATUS.NA).length, '#ff5252'],
+              ['Marked', markedCt, '#aa00ff'],
+              ['Not Visited', Object.values(statuses).filter(s => s === STATUS.NV).length, '#78909c'],
             ].map(([l, v, c]) => (
-              <div className="pstat" key={l}><span>{l}</span><span style={{ color: c }}>{v}</span></div>
+              <div className="pstat" key={l}><span>{l}</span><span style={{ color: c, fontWeight: 700 }}>{v}</span></div>
             ))}
           </div>
         </div>
