@@ -612,7 +612,13 @@ export default function App() {
       }}>
 
         {/* ── QUESTION PANEL ── */}
-        <div className="qpanel" style={{ marginRight: '260px', flex: 1, overflowY: 'auto', height: '100%' }}>
+        <div className="qpanel" style={{
+          marginRight: '260px',
+          flex: 1,
+          overflowY: 'auto',
+          height: '100%',
+          paddingBottom: '80px' // ADD THIS
+        }}>
 
           {/* Q header */}
           <div className="qhdr">
